@@ -1,0 +1,147 @@
+/Sender esp8266
+
+include <SoftwareSerial.h>
+include <ESP8266WiFi.h>
+include <WiFiManager.h>
+include <ThingSpeak.h>
+WiFiClient client;
+
+long myChannelNumber = 2024467;
+const char myWriteAPIKey[] = "9ZT3TIMZJWALE9H2";
+
+//SoftwareSerial NodeMCU(D1,D2);
+SoftwareSerial NodeMCU_SoftwareSerial(D1,D2);
+
+char phval[5]="";
+char tdsval[5]="";
+char idealph[5]="7.00";
+float fph=0,temp,setph=7.00,ftds=0;
+int arr[5],i;
+float settemp=0,settds=0;
+
+char c;
+String datain;
+int8_t indexOfA, indexOfB, indexOfC;
+
+String final_pH, final_TDS, final_Temp;
+
+void setup(){
+Serial.begin(115200);
+NodeMCU_SoftwareSerial.begin(9600);
+pinMode(D1,INPUT);
+pinMode(D2,OUTPUT);
+
+WiFiManager wfm;
+
+// Supress Debug information
+wfm.setDebugOutput(false);
+
+// Remove any previous network settings
+wfm.resetSettings();
+
+// Define a text box, 100 characters maximum
+WiFiManagerParameter custom_text_box_ph("my_text1", "Measure the pH value with the sensor and enter here: ", "7.00", 100);
+
+WiFiManagerParameter custom_text_box_tds("my_text2", "Measure the TDS value with the sensor and enter here: ", "250.00", 100);
+
+// Add custom parameter
+wfm.addParameter(&custom_text_box_ph);
+
+wfm.addParameter(&custom_text_box_tds);
+
+if (!wfm.autoConnect("ESP32TEST_AP", "password")) {
+// Did not connect, print error message
+Serial.println("Failed to connect and hit timeout");
+
+1
+2
+3
+// Reset and try again
+ESP.restart();
+delay(1000);
+}
+
+// Connected!
+Serial.println("WiFi connected");
+Serial.print("IP address: ");
+Serial.println(WiFi.localIP());
+
+// Print custom pH text box value to serial monitor
+Serial.print("Custom text box entry(pH): ");
+Serial.println(custom_text_box_ph.getValue());
+strcpy(phval,custom_text_box_ph.getValue());
+
+// Serial.println("Converted integer array: ");
+
+fph=atof(phval);
+// Serial.println(fph,3);
+
+if(fph==setph)
+{
+Serial.println("pH meter is working perfectly!!");
+}
+else if(fph<setph) //acidic
+{
+Serial.println("Asidic pH..");
+temp=setph-fph;
+setph=setph+temp;
+Serial.print("Calibrated pH value: ");
+Serial.println(setph);
+}
+else if(fph>setph) //acidic
+{
+Serial.println("Basic pH..");
+temp=fph-setph;
+setph=setph-temp;
+Serial.print("Calibrated pH value: ");
+Serial.println(setph);
+}
+
+// Print custom TDS text box value to serial monitor
+Serial.print("\nCustom text box entry(TDS): ");
+Serial.println(custom_text_box_tds.getValue());
+strcpy(tdsval,custom_text_box_tds.getValue());
+ftds=atof(tdsval);
+
+ThingSpeak.begin(client);
+
+settds=ftds;
+settemp=27.3;
+}
+
+void loop(){
+// //int i = 10;
+// NodeMCU.print(setph,settds);
+//// NodeMCU.print(settds);
+// NodeMCU.println("\n");
+// delay(1000);
+
+while(NodeMCU_SoftwareSerial.available()>0)
+{
+c=NodeMCU_SoftwareSerial.read();
+
+//Show all the data
+Serial.println("pH  : "+ final_pH);
+Serial.println("TDS : "+ final_TDS);
+Serial.println("Temp: "+ final_Temp);
+Serial.println("-----------------------------------");
+
+c=0;
+datain="";
+}
+
+//sending data to thingspeak
+ThingSpeak.writeField(myChannelNumber, 1, final_pH, myWriteAPIKey);
+ThingSpeak.writeField(myChannelNumber, 2, final_TDS, myWriteAPIKey);
+ThingSpeak.writeField(myChannelNumber, 3, final_Temp, myWriteAPIKey);
+}
+
+void ParseTheData(){
+indexOfA= datain.indexOf("A");
+indexOfB= datain.indexOf("B");
+indexOfC= datain.indexOf("C");
+
+final_pH = datain.substring(0,indexOfA);
+final_TDS = datain.substring(indexOfA+1, indexOfB);
+final_Temp = datain.substring(indexOfB+1, indexOfC);
+}
