@@ -1,0 +1,136 @@
+//FINAL_ARDUINO_SSC
+
+// #include <EEPROM.h>
+
+include <SoftwareSerial.h>
+include "GravityTDS.h"
+include <OneWire.h>
+include <DallasTemperature.h>
+include <Wire.h>
+include <LiquidCrystal_I2C.h>
+SoftwareSerial Arduino_SoftwareSerial(10,11); // 10=Rx, 11=Tx
+
+int relayPin1 = 9;
+int relayPin2 = 8; // define output pin for relay
+
+define TdsSensorPin A2
+define ONE_WIRE_BUS 7
+GravityTDS gravityTds;
+OneWire oneWire(ONE_WIRE_BUS);
+DallasTemperature sensors(&oneWire);
+
+LiquidCrystal_I2C lcd(0x27, 20, 4);
+
+static float calibration_value = 21.34 + 0.50;
+int phval = 0;
+unsigned long int avgval;
+int buffer_arr[10], temp;
+float temperature = 25, tdsValue =29 ,p;
+int tds=0;
+
+void setup() {
+
+pinMode(relayPin1, OUTPUT); // define pin 8 as output
+pinMode(relayPin2, OUTPUT);
+sensors.begin(); // Start up the library
+Serial.begin(115200);
+Arduino_SoftwareSerial.begin(9600);
+gravityTds.setPin(TdsSensorPin);
+gravityTds.setAref(5.0); //reference voltage on ADC, default 5.0V on Arduino UNO
+gravityTds.setAdcRange(1024); //1024 for 10bit ADC;4096 for 12bit ADC
+gravityTds.begin(); //initialization
+Serial.println("Dallas Temperature IC Control Library Demo");
+// Start up the library
+sensors.begin();
+
+lcd.init();
+lcd.clear();
+lcd.backlight();
+lcd.setCursor(4,1); //Set cursor to character 2 on line 0
+lcd.print("-- WELCOME--");
+lcd.setCursor(3,2); //Move cursor to character 2 on line 1
+lcd.print("--TAKING DATA--");
+}
+
+void loop() {
+{
+digitalWrite(relayPin1, LOW);
+digitalWrite(relayPin2,LOW);
+delay(10000);
+
+{
+
+  for (int i = 0; i < 10; i++) {
+    buffer_arr[i] = analogRead(A3);
+    delay(300);
+  }
+
+  for (int i = 0; i < 9; i++) {
+    for (int j = i + 1; j < 10; j++) {
+      if (buffer_arr[i] > buffer_arr[j]) {
+        temp = buffer_arr[i];
+        buffer_arr[i] = buffer_arr[j];
+        buffer_arr[j] = temp;
+      }
+    }
+  }
+  avgval = 0;
+  for (int i = 2; i < 8; i++)
+    avgval += buffer_arr[i];
+  float volt = (float)avgval * 5.0 / 1024 / 6;
+  float ph_act = -5.70 * volt + calibration_value;
+
+  delay(1000);
+  Serial.print("pH Val:");
+  Serial.println(ph_act);
+  Serial.print("voltage:");
+  Serial.println(volt);
+  p=ph_act;
+}
+// digitalWrite(relayPin1, HIGH);
+// digitalWrite(relayPin2,HIGH);
+delay(3000);
+
+}
+Serial.print(" Requesting temperatures...");
+sensors.requestTemperatures(); // Send the command to get temperature readings
+sensors.requestTemperatures();
+
+float t = sensors.getTempCByIndex(0);
+Serial.println("Temp: " + (String)t);
+
+{
+digitalWrite(relayPin1, HIGH);
+digitalWrite(relayPin2, HIGH);
+delay(10000);
+gravityTds.setTemperature(temperature); // set the temperature and execute temperature compensation
+gravityTds.update(); //sample and calculate
+tdsValue = gravityTds.getTdsValue(); // then get the value
+Serial.print(tdsValue, 0);
+Serial.println("ppm");
+tds=tdsValue;
+
+}
+
+1
+2
+delay(5000);
+  lcd.clear();
+lcd.setCursor(0,0); //Set cursor to character 2 on line 0
+lcd.print("Temp is:" + (String) t );
+
+lcd.setCursor(0,1); //Set cursor to character 2 on line 0
+lcd.print("TDS is:" + (String) tds +"ppm");
+
+lcd.setCursor(0,2); //Set cursor to character 2 on line 0
+lcd.print("Ph is:" + (String) p+" " );
+
+//Serial.println("Data is sent from arduino");
+Arduino_SoftwareSerial.print(p); Arduino_SoftwareSerial.print("A");
+Arduino_SoftwareSerial.print(tds); Arduino_SoftwareSerial.print("B");
+Arduino_SoftwareSerial.print(t); Arduino_SoftwareSerial.print("C");
+Arduino_SoftwareSerial.print("\n");
+
+delay(500);
+}
+
